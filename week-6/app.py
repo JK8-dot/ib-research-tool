@@ -61,8 +61,22 @@ Avg Volume: {avg_volume:,}
     except Exception as e:
         return f"Could not fetch data for {ticker}: {str(e)}"
 
-search_tool = DuckDuckGoSearchRun()
-tools = [search_tool, get_stock_data]
+from langchain.tools import tool as tool_decorator
+import time
+
+@tool_decorator
+def search_web(query: str) -> str:
+    """Search the web for recent news and information about companies, markets, and industries."""
+    for attempt in range(3):
+        try:
+            ddg = DuckDuckGoSearchRun()
+            return ddg.run(query)
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(2)
+            else:
+                return f"Web search unavailable. Using financial data only. Error: {str(e)}"
+ttools = [search_web, get_stock_data]
 agent_executor = create_react_agent(llm, tools)
 
 def save_to_pdf(ticker, content):
