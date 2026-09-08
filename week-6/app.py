@@ -128,13 +128,13 @@ def save_to_pdf(ticker, content):
 def clean_for_display(text):
     lines = text.split('\n')
     cleaned = []
-    skip_phrases = ['all data received', 'let me compile', 'now let me', 'i now have', 'i have all']
+    skip_phrases = ['all data received', 'let me compile', 'now let me', 'i now have', 'i have all', 'all data gathered', 'here is the complete', 'i have gathered', 'excellent. here', 'now i have']
     for line in lines:
         if any(phrase in line.lower() for phrase in skip_phrases):
             continue
         # Convert === divider lines to markdown horizontal rules
         stripped = line.strip()
-        if all(c in '=-| ' for c in stripped) and len(stripped) > 5:            
+        if all(c in '= ' for c in stripped) and len(stripped) > 5:
             cleaned.append('---')
             continue
         # Convert SECTION headers to markdown
@@ -144,6 +144,18 @@ def clean_for_display(text):
             continue
         cleaned.append(line)
     text = '\n'.join(cleaned)
+    # Add missing separator rows to markdown tables
+    lines = text.split('\n')
+    final = []
+    for i, line in enumerate(lines):
+        final.append(line)
+        if line.startswith('|') and i + 1 < len(lines):
+            next_line = lines[i + 1]
+            if next_line.startswith('|') and '---' not in next_line:
+                cols = len(line.split('|')) - 2
+                separator = '|' + '|'.join(['---'] * cols) + '|'
+                final.append(separator)
+    text = '\n'.join(final)
     text = re.sub(r'(?<!\\)\$(?=\d)', r'\\$', text)
     return text
 
