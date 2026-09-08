@@ -1,0 +1,5 @@
+,avg_daily_return,annualized_volatility,total_return,sharpe_ratio,max_drawdown
+XOM,0.0019,0.2543,0.5537,1.8752,-0.2011
+AAPL,0.0013,0.2505,0.3326,1.2814,-0.138
+NVDA,0.001,0.3679,0.1891,0.6576,-0.2021
+MSFT,0.0,0.3215,-0.0404,0.0281,-0.345
