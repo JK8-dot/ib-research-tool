@@ -1,5 +1,6 @@
 import os
 import re
+import time
 import yfinance as yf
 from datetime import datetime
 from dotenv import load_dotenv
@@ -7,6 +8,7 @@ import streamlit as st
 from langchain_anthropic import ChatAnthropic
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain.tools import tool
+from langchain.tools import tool as tool_decorator
 from langgraph.prebuilt import create_react_agent
 from fpdf import FPDF
 
@@ -34,7 +36,6 @@ def get_stock_data(ticker: str) -> str:
     try:
         stock = yf.Ticker(ticker)
         info = stock.info
-
         current_price = info.get("currentPrice", "N/A")
         week_high = info.get("fiftyTwoWeekHigh", "N/A")
         week_low = info.get("fiftyTwoWeekLow", "N/A")
@@ -43,10 +44,8 @@ def get_stock_data(ticker: str) -> str:
         volume = info.get("volume", "N/A")
         avg_volume = info.get("averageVolume", "N/A")
         daily_change = info.get("regularMarketChangePercent", "N/A")
-
         if market_cap != "N/A":
             market_cap = f"${market_cap / 1e9:.1f}B"
-
         return f"""
 Stock: {ticker.upper()}
 Current Price: ${current_price}
@@ -61,9 +60,6 @@ Avg Volume: {avg_volume:,}
     except Exception as e:
         return f"Could not fetch data for {ticker}: {str(e)}"
 
-from langchain.tools import tool as tool_decorator
-import time
-
 @tool_decorator
 def search_web(query: str) -> str:
     """Search the web for recent news and information about companies, markets, and industries."""
@@ -76,6 +72,7 @@ def search_web(query: str) -> str:
                 time.sleep(2)
             else:
                 return f"Web search unavailable. Using financial data only. Error: {str(e)}"
+
 tools = [search_web, get_stock_data]
 agent_executor = create_react_agent(llm, tools)
 
@@ -83,30 +80,24 @@ def save_to_pdf(ticker, content):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_margins(15, 15, 15)
-
     pdf.set_font("Helvetica", "B", 16)
     pdf.cell(0, 10, f"IB Research Brief: {ticker.upper()}", new_x="LMARGIN", new_y="NEXT")
-
     pdf.set_font("Helvetica", "", 10)
     pdf.cell(0, 8, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", new_x="LMARGIN", new_y="NEXT")
     pdf.ln(5)
-
     pdf.set_font("Helvetica", "", 11)
     for line in content.split("\n"):
         clean_line = line.encode("ascii", "ignore").decode("ascii")
         clean_line = clean_line.replace("|", " ").strip()
-
         if not clean_line or all(c in "-=*_# " for c in clean_line):
             pdf.ln(3)
             continue
-
         words = []
         for word in clean_line.split():
             if len(word) > 50:
                 word = word[:50]
             words.append(word)
         clean_line = " ".join(words)
-
         try:
             if clean_line.startswith("# "):
                 pdf.set_font("Helvetica", "B", 13)
@@ -120,7 +111,6 @@ def save_to_pdf(ticker, content):
                 pdf.multi_cell(0, 6, clean_line)
         except Exception:
             pass
-
     filename = f"/tmp/{ticker.upper()}_Research_Brief_{datetime.now().strftime('%Y-%m-%d')}.pdf"
     pdf.output(filename)
     return filename
@@ -129,8 +119,17 @@ def clean_for_display(text):
     text = re.sub(r'\$(?=\d)', r'\\$', text)
     return text
 
-st.title("📊 IB Research Tool")
-st.markdown("Autonomous equity research powered by AI and live market data.")
+st.markdown("""
+    <style>
+    .stApp { background-color: #ffffff; }
+    h1, h2, h3 { font-family: 'Georgia', serif; color: #1a1a1a; }
+    .stDataFrame { font-size: 13px; }
+    section[data-testid="stSidebar"] { background-color: #f0f2f6; }
+    </style>
+""", unsafe_allow_html=True)
+
+st.title("IB Research Tool")
+st.markdown("Equity research automation — live market data + AI-generated investment analysis.")
 
 with st.sidebar:
     st.header("Settings")
@@ -138,6 +137,7 @@ with st.sidebar:
         "Analysis Type",
         ["Single Company", "Competitive Analysis"]
     )
+    analyst_name = st.text_input("Analyst name (optional)", placeholder="Your name")
     st.markdown("---")
     st.caption("Uses Claude Sonnet + yfinance + DuckDuckGo")
 
@@ -157,7 +157,14 @@ if analysis_type == "Single Company":
                 5. Industry Tailwinds and Headwinds
                 6. Key Risks
                 7. Investment Thesis and Recommendation (Buy/Hold/Sell with price target)
-                Today's date is {datetime.now().strftime('%B %d, %Y')}. Use this as the coverage date.""")]            })
+
+                Formatting rules — follow exactly:
+                - No emojis anywhere in the output
+                - Section headers in plain text only, no symbols
+                - Header line format: Rating: [X] | Price Target: $[X] | Current Price: $[X] | Coverage Date: {datetime.now().strftime('%B %d, %Y')} | Analyst: {analyst_name or 'Research Division'}
+                - Every header field separated by | consistently
+                Today's date is {datetime.now().strftime('%B %d, %Y')}.""")]
+            })
             st.session_state["single_note"] = result["messages"][-1].content
             st.session_state["single_ticker"] = ticker
 
@@ -167,23 +174,19 @@ if analysis_type == "Single Company":
     if "single_note" in st.session_state:
         note = st.session_state["single_note"]
         tick = st.session_state["single_ticker"]
-
-        tab1, tab2, tab3 = st.tabs(["📝 Research Note", "📈 Price Chart", "📄 Download"])
-
+        tab1, tab2, tab3 = st.tabs(["Research Note", "Price Chart", "Download"])
         with tab1:
             st.markdown(clean_for_display(note))
-
         with tab2:
             stock = yf.Ticker(tick)
             hist = stock.history(period="1y")
             st.subheader(f"{tick} — 1 Year Price History")
             st.line_chart(hist["Close"])
-
         with tab3:
             pdf_path = save_to_pdf(tick, note)
             with open(pdf_path, "rb") as f:
                 st.download_button(
-                    label="📄 Download Research Brief (PDF)",
+                    label="Download Research Brief (PDF)",
                     data=f,
                     file_name=f"{tick}_Research_Brief_{datetime.now().strftime('%Y-%m-%d')}.pdf",
                     mime="application/pdf"
@@ -205,7 +208,14 @@ else:
                 Then produce: market position overview, financial comparison table,
                 key competitive advantages per company, biggest threats to {target},
                 and investment recommendation.
-                Today's date is {datetime.now().strftime('%B %d, %Y')}.""")]            })
+
+                Formatting rules — follow exactly:
+                - No emojis anywhere in the output
+                - Section headers in plain text only, no symbols
+                - Every header field separated by | consistently
+                - Analyst: {analyst_name or 'Research Division'}
+                Today's date is {datetime.now().strftime('%B %d, %Y')}.""")]
+            })
             st.session_state["comp_note"] = result["messages"][-1].content
             st.session_state["comp_ticker"] = target
 
@@ -215,25 +225,20 @@ else:
     if "comp_note" in st.session_state:
         note = st.session_state["comp_note"]
         tick = st.session_state["comp_ticker"]
-
-        tab1, tab2, tab3 = st.tabs(["📝 Research Note", "📈 Price Chart", "📄 Download"])
-
+        tab1, tab2, tab3 = st.tabs(["Research Note", "Price Chart", "Download"])
         with tab1:
             st.markdown(clean_for_display(note))
-
         with tab2:
             stock = yf.Ticker(tick)
             hist = stock.history(period="1y")
             st.subheader(f"{tick} — 1 Year Price History")
             st.line_chart(hist["Close"])
-
         with tab3:
             pdf_path = save_to_pdf(tick, note)
             with open(pdf_path, "rb") as f:
                 st.download_button(
-                    label="📄 Download Analysis (PDF)",
+                    label="Download Analysis (PDF)",
                     data=f,
                     file_name=f"{tick}_Competitive_Analysis_{datetime.now().strftime('%Y-%m-%d')}.pdf",
                     mime="application/pdf"
                 )
-
