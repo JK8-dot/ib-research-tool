@@ -76,7 +76,7 @@ def search_web(query: str) -> str:
                 time.sleep(2)
             else:
                 return f"Web search unavailable. Using financial data only. Error: {str(e)}"
-ttools = [search_web, get_stock_data]
+tools = [search_web, get_stock_data]
 agent_executor = create_react_agent(llm, tools)
 
 def save_to_pdf(ticker, content):
