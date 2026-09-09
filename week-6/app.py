@@ -147,14 +147,19 @@ def clean_for_display(text):
     # Add missing separator rows to markdown tables
     lines = text.split('\n')
     final = []
+    prev_was_header = False
     for i, line in enumerate(lines):
+        if line.strip().startswith('---') and '|' not in line:
+            continue
         final.append(line)
-        if line.startswith('|') and i + 1 < len(lines):
-            next_line = lines[i + 1]
-            if next_line.startswith('|') and '---' not in next_line:
+        if line.startswith('|') and not prev_was_header:
+            if i + 1 < len(lines) and lines[i+1].startswith('|') and '---' not in lines[i+1]:
                 cols = len(line.split('|')) - 2
                 separator = '|' + '|'.join(['---'] * cols) + '|'
                 final.append(separator)
+                prev_was_header = True
+        else:
+            prev_was_header = False
     text = '\n'.join(final)
     text = re.sub(r'(?<!\\)\$(?=\d)', r'\\$', text)
     return text
