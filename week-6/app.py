@@ -126,41 +126,10 @@ def save_to_pdf(ticker, content):
     return filename
 
 def clean_for_display(text):
-    lines = text.split('\n')
-    cleaned = []
     skip_phrases = ['all data received', 'let me compile', 'now let me', 'i now have', 'i have all', 'all data gathered', 'here is the complete', 'i have gathered', 'excellent. here', 'now i have']
-    for line in lines:
-        if any(phrase in line.lower() for phrase in skip_phrases):
-            continue
-        # Convert === divider lines to markdown horizontal rules
-        stripped = line.strip()
-        if all(c in '= ' for c in stripped) and len(stripped) > 5:
-            cleaned.append('---')
-            continue
-        # Convert SECTION headers to markdown
-        if line.strip().startswith('SECTION') and '|' in line:
-            header = line.split('|')[-1].strip()
-            cleaned.append(f'## {header}')
-            continue
-        cleaned.append(line)
-    text = '\n'.join(cleaned)
-    # Add missing separator rows to markdown tables
     lines = text.split('\n')
-    final = []
-    prev_was_header = False
-    for i, line in enumerate(lines):
-        if line.strip().startswith('---') and '|' not in line:
-            continue
-        final.append(line)
-        if line.startswith('|') and not prev_was_header:
-            if i + 1 < len(lines) and lines[i+1].startswith('|') and '---' not in lines[i+1]:
-                cols = len(line.split('|')) - 2
-                separator = '|' + '|'.join(['---'] * cols) + '|'
-                final.append(separator)
-                prev_was_header = True
-        else:
-            prev_was_header = False
-    text = '\n'.join(final)
+    cleaned = [line for line in lines if not any(phrase in line.lower() for phrase in skip_phrases)]
+    text = '\n'.join(cleaned)
     text = re.sub(r'(?<!\\)\$(?=\d)', r'\\$', text)
     return text
 
